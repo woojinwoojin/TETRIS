@@ -382,3 +382,49 @@ board[y][x]
 6. 새로운 O 블록이 생성된다.
 
 이 버전이 정상 동작하면 다른 블록, 회전, 줄 삭제 기능을 순서대로 추가한다.
+
+---
+
+## 10. 실행 방법
+
+### 소스로 실행
+
+```bash
+pip install -r requirements.txt
+python main.py
+```
+
+### 조작법
+
+| 키 | 동작 |
+|----|------|
+| ← → | 좌우 이동 |
+| ↑ | 회전 (벽차기 지원) |
+| ↓ | 소프트 드롭 (빠르게 낙하) |
+| Space | 하드 드롭 (한 번에 낙하) |
+
+### 구현된 기능
+
+1차 구현 범위(보드·7종 블록·이동·낙하·회전·충돌·고정·줄삭제·점수·게임오버)에 더해:
+
+- 배경 음악 (`assets/bgm.mp3`)
+- 벽차기 회전
+- 소프트 드롭 / 하드 드롭
+- 고스트 블록 (착지 위치 미리보기)
+- 다음 블록 미리보기 (NEXT)
+- 레벨 / 낙하 속도 증가 (500점마다 난이도 상승)
+
+---
+
+## 11. exe 빌드
+
+윈도우 실행 파일(exe)을 만들려면 PyInstaller를 사용한다.
+
+```bash
+pip install pyinstaller
+pyinstaller --onefile --noconsole --name TETRIS --add-data "assets/bgm.mp3;assets" main.py
+```
+
+- 결과물: `dist/TETRIS.exe` (음악 파일이 내부에 포함됨)
+- `build/`, `dist/`, `*.spec`는 빌드 산출물이라 git에 커밋하지 않는다(`.gitignore` 처리).
+- 배포 시에는 저장소에 직접 커밋하는 대신 **GitHub Release**에 exe를 첨부하는 것을 권장한다.
