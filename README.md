@@ -431,10 +431,10 @@ python main.py
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --noconsole --name TETRIS --add-data "assets/bgm.mp3;assets" main.py
+pyinstaller --onefile --noconsole --name TETRIS --icon "assets/icon.ico" --add-data "assets/bgm.mp3;assets" main.py
 ```
 
-- 결과물: `dist/TETRIS.exe` (음악 파일이 내부에 포함됨)
+- 결과물: `dist/TETRIS.exe` (음악 파일이 내부에 포함됨, 아이콘은 `assets/icon.ico`)
 - `build/`, `dist/`, `*.spec`는 빌드 산출물이라 git에 커밋하지 않는다(`.gitignore` 처리).
 - 배포 시에는 저장소에 직접 커밋하는 대신 **GitHub Release**에 exe를 첨부하는 것을 권장한다.
 
