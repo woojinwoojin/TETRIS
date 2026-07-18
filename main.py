@@ -439,6 +439,13 @@ def load_font(size):
 def main():
     pygame.init()
 
+    # 창 아이콘 설정 (파일이 없거나 로드 실패해도 무시)
+    try:
+        icon = pygame.image.load(resource_path(os.path.join("assets", "icon.png")))
+        pygame.display.set_icon(icon)
+    except pygame.error as e:
+        print("창 아이콘을 불러올 수 없습니다:", e)
+
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("TETRIS")
     clock = pygame.time.Clock()
