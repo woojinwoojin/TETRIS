@@ -423,14 +423,27 @@ def draw_piece(screen, piece):
                 draw_cell(screen, piece.x + col_index, piece.y + row_index, color)
 
 
+# 한글이 보이도록 우선 시도할 시스템 폰트 목록 (윈도우 맑은 고딕 등)
+KOREAN_FONTS = "malgungothic,gulim,dotum,batang,나눔고딕,notosanscjkkr"
+
+
+def load_font(size):
+    """한글을 지원하는 폰트를 찾아 반환한다. 없으면 기본 폰트로 대체한다."""
+    matched = pygame.font.match_font(KOREAN_FONTS)
+    if matched:
+        return pygame.font.Font(matched, size)
+    # 한글 폰트를 못 찾으면 기본 폰트 (한글은 네모로 보일 수 있음)
+    return pygame.font.SysFont(None, size)
+
+
 def main():
     pygame.init()
 
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("TETRIS")
     clock = pygame.time.Clock()
-    font = pygame.font.SysFont(None, 34)
-    big_font = pygame.font.SysFont(None, 60)
+    font = load_font(28)
+    big_font = load_font(48)
 
     # 배경 음악 준비 (파일이 없으면 music_ok=False로 두고 조용히 넘어간다)
     music_ok = False
