@@ -33,7 +33,7 @@ BGM_PATH = resource_path(os.path.join("assets", "bgm.mp3"))
 # 보드 설정
 COLS = 10
 ROWS = 20
-CELL_SIZE = 30
+CELL_SIZE = 40
 
 # 보드가 그려질 위치(왼쪽 위 기준 여백)
 BOARD_X = 20
@@ -44,7 +44,7 @@ BOARD_WIDTH = COLS * CELL_SIZE
 BOARD_HEIGHT = ROWS * CELL_SIZE
 
 # 오른쪽 정보 패널 폭
-PANEL_WIDTH = 140
+PANEL_WIDTH = 180
 
 # 화면 설정
 SCREEN_WIDTH = BOARD_X * 2 + BOARD_WIDTH + PANEL_WIDTH
@@ -107,6 +107,17 @@ SHAPES = {
 }
 
 
+# 게임 상태
+STATE_START = "start"        # 시작 화면 (게임 시작 버튼)
+STATE_PLAYING = "playing"    # 진행 중
+STATE_PAUSED = "paused"      # 일시정지 (ESC)
+STATE_GAMEOVER = "gameover"  # 게임 오버
+
+# 버튼 색
+BTN_BG = (55, 55, 55)
+BTN_BG_HOVER = (90, 90, 90)
+
+
 class Piece:
     """현재 움직이는 블록. 모양, 색 번호, 보드 상의 위치(x, y)를 가진다."""
 
@@ -115,6 +126,35 @@ class Piece:
         self.color = color  # COLORS의 색 번호(1~7)
         self.x = x
         self.y = y
+
+
+class Button:
+    """가운데 정렬된 클릭 가능한 버튼. 마우스 호버 시 색이 밝아진다."""
+
+    def __init__(self, label, center_x, center_y, width=220, height=52):
+        self.label = label
+        self.rect = pygame.Rect(0, 0, width, height)
+        self.rect.center = (center_x, center_y)
+
+    def draw(self, screen, font, mouse_pos):
+        hovered = self.rect.collidepoint(mouse_pos)
+        pygame.draw.rect(
+            screen,
+            BTN_BG_HOVER if hovered else BTN_BG,
+            self.rect,
+            border_radius=8,
+        )
+        pygame.draw.rect(screen, WHITE, self.rect, 2, border_radius=8)
+        text = font.render(self.label, True, WHITE)
+        screen.blit(text, text.get_rect(center=self.rect.center))
+
+    def is_clicked(self, event):
+        """왼쪽 클릭이 이 버튼 위에서 일어났는지 검사한다."""
+        return (
+            event.type == pygame.MOUSEBUTTONDOWN
+            and event.button == 1
+            and self.rect.collidepoint(event.pos)
+        )
 
 
 def create_board():
@@ -226,6 +266,14 @@ def lock_and_spawn(board, piece, next_queue):
     return new_piece, gained, over
 
 
+def start_new_game():
+    """새 게임의 초기 상태(보드, 다음 대기열, 첫 블록)를 만들어 반환한다."""
+    board = create_board()
+    next_queue = [random.randint(1, 7) for _ in range(NEXT_COUNT)]
+    current_piece = spawn_next(next_queue)
+    return board, next_queue, current_piece
+
+
 def get_level(score):
     """점수로 현재 레벨을 계산한다 (1부터 시작)."""
     return score // LEVEL_UP_SCORE + 1
@@ -299,7 +347,7 @@ def draw_panel(screen, font, score, next_queue):
 
     # 다음 블록 미리보기
     screen.blit(font.render("NEXT", True, WHITE), (panel_x, BOARD_Y + 150))
-    mini = 20
+    mini = 26
     slot_y = BOARD_Y + 180
     for color in next_queue:
         shape = SHAPES[color]
@@ -325,6 +373,21 @@ def draw_game_over(screen, font):
     box.fill(BLACK)
     screen.blit(box, (rect.x - 10, rect.y - 10))
     screen.blit(text, rect)
+
+
+def draw_overlay(screen):
+    """화면 전체를 어둡게 덮어 그 위 메뉴가 잘 보이게 한다."""
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    overlay.set_alpha(190)
+    overlay.fill(BLACK)
+    screen.blit(overlay, (0, 0))
+
+
+def draw_centered_title(screen, font, text, center_y):
+    """가운데 정렬된 큰 제목을 그린다."""
+    surface = font.render(text, True, WHITE)
+    rect = surface.get_rect(center=(SCREEN_WIDTH // 2, center_y))
+    screen.blit(surface, rect)
 
 
 def get_drop_y(board, piece):
@@ -366,100 +429,182 @@ def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("TETRIS")
     clock = pygame.time.Clock()
-    font = pygame.font.SysFont(None, 28)
-    big_font = pygame.font.SysFont(None, 48)
+    font = pygame.font.SysFont(None, 34)
+    big_font = pygame.font.SysFont(None, 60)
 
-    # 배경 음악 재생 (파일이 없으면 조용히 넘어감)
+    # 배경 음악 준비 (파일이 없으면 music_ok=False로 두고 조용히 넘어간다)
+    music_ok = False
     try:
         pygame.mixer.init()
         pygame.mixer.music.load(BGM_PATH)
         pygame.mixer.music.set_volume(0.5)
-        pygame.mixer.music.play(-1)  # -1: 무한 반복
+        music_ok = True
     except pygame.error as e:
         print("배경 음악을 재생할 수 없습니다:", e)
 
+    def music_play():
+        if music_ok:
+            pygame.mixer.music.play(-1)  # -1: 무한 반복
+
+    def music_stop():
+        if music_ok:
+            pygame.mixer.music.stop()
+
+    def music_pause():
+        if music_ok:
+            pygame.mixer.music.pause()
+
+    def music_unpause():
+        if music_ok:
+            pygame.mixer.music.unpause()
+
+    # 화면 가운데를 기준으로 메뉴 버튼을 배치한다
+    cx = SCREEN_WIDTH // 2
+    cy = SCREEN_HEIGHT // 2
+
+    # 시작 화면 버튼
+    start_button = Button("게임 시작", cx, cy + 20)
+
+    # 일시정지 메뉴 버튼 (재시작=이어하기, RESET=처음부터, 게임 종료)
+    pause_resume_button = Button("재시작", cx, cy - 20)
+    pause_reset_button = Button("RESET", cx, cy + 44)
+    pause_quit_button = Button("게임 종료", cx, cy + 108)
+
+    # 게임 오버 메뉴 버튼
+    over_reset_button = Button("RESET", cx, cy + 40)
+    over_quit_button = Button("게임 종료", cx, cy + 104)
+
+    # 게임 상태 변수 (아직 시작 전)
     board = create_board()
-
-    # 다음 블록 대기열을 채우고 첫 블록을 꺼낸다
-    next_queue = [random.randint(1, 7) for _ in range(NEXT_COUNT)]
-    current_piece = spawn_next(next_queue)
-
+    next_queue = []
+    current_piece = None
     score = 0
     fall_timer = 0  # 낙하 누적 시간(ms)
-    game_over = False
+    state = STATE_START
+
+    def reset_game():
+        """보드/점수를 초기화하고 진행 상태로 만든다."""
+        nonlocal board, next_queue, current_piece, score, fall_timer, state
+        board, next_queue, current_piece = start_new_game()
+        score = 0
+        fall_timer = 0
+        state = STATE_PLAYING
+        music_play()
 
     running = True
     while running:
         dt = clock.tick(FPS)  # 지난 프레임 이후 경과 시간(ms)
-        fall_timer += dt
+        mouse_pos = pygame.mouse.get_pos()
 
-        # 입력 처리
+        # 진행 중일 때만 낙하 시간을 누적한다
+        if state == STATE_PLAYING:
+            fall_timer += dt
+
+        # ---- 입력 처리 ----
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN and not game_over:
-                if event.key == pygame.K_LEFT:
-                    if is_valid_position(board, current_piece, offset_x=-1):
-                        current_piece.x -= 1
-                elif event.key == pygame.K_RIGHT:
-                    if is_valid_position(board, current_piece, offset_x=1):
-                        current_piece.x += 1
-                elif event.key == pygame.K_UP:
-                    # 벽차기 포함 회전
-                    try_rotate(board, current_piece)
-                elif event.key == pygame.K_SPACE:
-                    # 하드 드롭: 착지 위치로 한 번에 내리고 즉시 고정
-                    current_piece.y = get_drop_y(board, current_piece)
-                    current_piece, gained, game_over = lock_and_spawn(
+
+            elif state == STATE_START:
+                if start_button.is_clicked(event):
+                    reset_game()
+
+            elif state == STATE_PLAYING:
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        state = STATE_PAUSED
+                        music_pause()
+                    elif event.key == pygame.K_LEFT:
+                        if is_valid_position(board, current_piece, offset_x=-1):
+                            current_piece.x -= 1
+                    elif event.key == pygame.K_RIGHT:
+                        if is_valid_position(board, current_piece, offset_x=1):
+                            current_piece.x += 1
+                    elif event.key == pygame.K_UP:
+                        # 벽차기 포함 회전
+                        try_rotate(board, current_piece)
+                    elif event.key == pygame.K_SPACE:
+                        # 하드 드롭: 착지 위치로 한 번에 내리고 즉시 고정
+                        current_piece.y = get_drop_y(board, current_piece)
+                        current_piece, gained, over = lock_and_spawn(
+                            board, current_piece, next_queue
+                        )
+                        score += gained
+                        fall_timer = 0
+                        if over:
+                            state = STATE_GAMEOVER
+                            music_stop()
+
+            elif state == STATE_PAUSED:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    state = STATE_PLAYING  # ESC를 다시 누르면 이어하기
+                    music_unpause()
+                elif pause_resume_button.is_clicked(event):
+                    state = STATE_PLAYING
+                    music_unpause()
+                elif pause_reset_button.is_clicked(event):
+                    reset_game()
+                elif pause_quit_button.is_clicked(event):
+                    running = False
+
+            elif state == STATE_GAMEOVER:
+                if over_reset_button.is_clicked(event):
+                    reset_game()
+                elif over_quit_button.is_clicked(event):
+                    running = False
+
+        # ---- 자동 낙하 / 소프트 드롭 (진행 중일 때만) ----
+        if state == STATE_PLAYING:
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_DOWN]:
+                interval = SOFT_DROP_INTERVAL
+            else:
+                interval = get_fall_interval(score)
+
+            if fall_timer >= interval:
+                fall_timer = 0
+                if is_valid_position(board, current_piece, offset_y=1):
+                    current_piece.y += 1
+                else:
+                    # 더 못 내려가면 보드에 고정하고 줄 삭제 후 새 블록 생성
+                    current_piece, gained, over = lock_and_spawn(
                         board, current_piece, next_queue
                     )
                     score += gained
-                    fall_timer = 0
-                    if game_over:
-                        pygame.mixer.music.stop()
+                    if over:
+                        state = STATE_GAMEOVER
+                        music_stop()
 
-        # 낙하 간격: 평소엔 레벨에 따라, 아래 방향키를 누르면 소프트 드롭
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_DOWN]:
-            interval = SOFT_DROP_INTERVAL
-        else:
-            interval = get_fall_interval(score)
-
-        # 자동 낙하 / 소프트 드롭
-        if not game_over and fall_timer >= interval:
-            fall_timer = 0
-            if is_valid_position(board, current_piece, offset_y=1):
-                current_piece.y += 1
-            else:
-                # 더 못 내려가면 보드에 고정하고 줄 삭제 후 새 블록 생성
-                current_piece, gained, game_over = lock_and_spawn(
-                    board, current_piece, next_queue
-                )
-                score += gained
-                if game_over:
-                    pygame.mixer.music.stop()
-
-        # 화면 그리기
+        # ---- 화면 그리기 ----
         screen.fill(BLACK)
         draw_grid(screen)
-        draw_board(screen, board)
-        if not game_over:
-            draw_ghost(screen, board, current_piece)
-            draw_piece(screen, current_piece)
-        draw_panel(screen, font, score, next_queue)
-        if game_over:
-            draw_game_over(screen, big_font)
+
+        if state == STATE_START:
+            draw_overlay(screen)
+            draw_centered_title(screen, big_font, "TETRIS", cy - 70)
+            start_button.draw(screen, font, mouse_pos)
+        else:
+            # 진행/일시정지/게임오버 공통: 보드와 현재 블록을 그린다
+            draw_board(screen, board)
+            if state in (STATE_PLAYING, STATE_PAUSED):
+                draw_ghost(screen, board, current_piece)
+                draw_piece(screen, current_piece)
+            draw_panel(screen, font, score, next_queue)
+
+            if state == STATE_PAUSED:
+                draw_overlay(screen)
+                draw_centered_title(screen, big_font, "일시정지", cy - 90)
+                pause_resume_button.draw(screen, font, mouse_pos)
+                pause_reset_button.draw(screen, font, mouse_pos)
+                pause_quit_button.draw(screen, font, mouse_pos)
+            elif state == STATE_GAMEOVER:
+                draw_overlay(screen)
+                draw_centered_title(screen, big_font, "GAME OVER", cy - 60)
+                draw_centered_title(screen, font, f"SCORE  {score}", cy - 10)
+                over_reset_button.draw(screen, font, mouse_pos)
+                over_quit_button.draw(screen, font, mouse_pos)
+
         pygame.display.flip()
-
-
-
-
-
-
-
-
-
-
 
     pygame.quit()
 
